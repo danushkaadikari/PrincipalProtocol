@@ -10,3 +10,5 @@ cache
 artifacts
 # Frontend directory (has its own repository)
 frontend/
+tests/
+supabase/migrations
