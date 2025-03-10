@@ -7,6 +7,7 @@
     "compile": "hardhat compile",
     "deploy:local": "hardhat run scripts/test-deploy.js --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:liquidity-hub-sepolia": "hardhat run scripts/deploy-liquidity-hub.js --network sepolia",
     "node": "hardhat node"
   },
   "keywords": [],
@@ -16,9 +17,28 @@
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "dotenv": "^16.4.7",
-    "hardhat": "^2.22.18"
+    "hardhat": "^2.22.18",
+    "playwright": "^1.50.1"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "4.9.3"
+    "@hookform/resolvers": "^4.0.0",
+    "@openzeppelin/contracts": "4.9.3",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.6",
+    "@radix-ui/react-label": "^2.1.2",
+    "@radix-ui/react-progress": "^1.1.2",
+    "@radix-ui/react-select": "^2.1.6",
+    "@radix-ui/react-slot": "^1.1.2",
+    "@supabase/supabase-js": "^2.48.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.475.0",
+    "next-themes": "^0.4.4",
+    "react-dropzone": "^14.3.5",
+    "react-hook-form": "^7.54.2",
+    "tailwind-merge": "^3.0.1",
+    "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.0.5",
+    "zod": "^3.24.1"
   }
 }
