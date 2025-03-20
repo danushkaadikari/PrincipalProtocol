@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./LiquidityHubAdmin.sol";
 import "./LiquidityHubStorage.sol";
@@ -17,6 +18,7 @@ import "./interfaces/IRealEstateNFT.sol";
  * @notice Main contract for the Principal Protocol's lending and borrowing functionality
  */
 contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
+    using SafeERC20 for IERC20;
     // Lender state
     struct LenderPosition {
         uint256 amount;
@@ -148,10 +150,7 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         totalDeposited += amount;
         
         // Transfer USDT from user (interactions last)
-        require(
-            IERC20(usdtToken).transferFrom(msg.sender, address(this), amount),
-            "USDT transfer failed"
-        );
+        IERC20(usdtToken).safeTransferFrom(msg.sender, address(this), amount);
         
         emit Deposit(msg.sender, amount);
     }
@@ -178,17 +177,11 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         totalDeposited -= amount;
         
         // Transfer USDT to user
-        require(
-            IERC20(usdtToken).transfer(msg.sender, withdrawAmount),
-            "USDT transfer failed"
-        );
+        IERC20(usdtToken).safeTransfer(msg.sender, withdrawAmount);
         
         // Transfer fee to treasury if any
         if (fee > 0) {
-            require(
-                IERC20(usdtToken).transfer(admin.treasuryWallet(), fee),
-                "Fee transfer failed"
-            );
+            IERC20(usdtToken).safeTransfer(admin.treasuryWallet(), fee);
         }
         
         emit Withdrawal(msg.sender, withdrawAmount, fee);
@@ -281,7 +274,7 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         }
         
         // Transfer USDT to borrower
-        require(IERC20(usdtToken).transfer(msg.sender, amount), "USDT transfer failed");
+        IERC20(usdtToken).safeTransfer(msg.sender, amount);
         
         // Calculate and emit loan health
         uint256 health = (position.totalCollateralValue * 10000) / position.borrowedAmount;
@@ -321,11 +314,8 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         // Allow excess payments to handle interest accrual during transaction time
         // Previously: require(amount <= totalOwed, "Amount exceeds debt");
         
-        // Transfer USDT from user
-        require(
-            IERC20(usdtToken).transferFrom(msg.sender, address(this), amount),
-            "USDT transfer failed"
-        );
+        // Transfer USDT from user using SafeERC20
+        IERC20(usdtToken).safeTransferFrom(msg.sender, address(this), amount);
         
         // Update state
         if (amount >= totalOwed) {
@@ -575,11 +565,8 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
             position.accumulatedInterest = 0;
             position.lastUpdateTime = block.timestamp;
             
-            // Transfer total interest to lender
-            require(
-                IERC20(usdtToken).transfer(lender, totalInterest),
-                "Interest transfer failed"
-            );
+            // Transfer total interest to lender using SafeERC20
+            IERC20(usdtToken).safeTransfer(lender, totalInterest);
             
             emit InterestHarvested(lender, totalInterest);
         }

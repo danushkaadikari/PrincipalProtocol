@@ -3,9 +3,11 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract RealEstateNFT is ERC721, ReentrancyGuard {
+    using SafeERC20 for IERC20;
     address public immutable factory;
     address public immutable usdtToken;
     uint256 public immutable pricePerNFT;
@@ -53,11 +55,8 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
         
         uint256 totalCost = pricePerNFT * amount;
         
-        // Transfer USDT from user
-        require(
-            IERC20(usdtToken).transferFrom(msg.sender, address(this), totalCost),
-            "USDT transfer failed"
-        );
+        // Transfer USDT from user using SafeERC20
+        IERC20(usdtToken).safeTransferFrom(msg.sender, address(this), totalCost);
 
         for (uint256 i = 0; i < amount; i++) {
             uint256 tokenId = currentTokenId + 1;
@@ -71,10 +70,8 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
         uint256 balance = IERC20(usdtToken).balanceOf(address(this));
         require(balance > 0, "No funds to withdraw");
 
-        require(
-            IERC20(usdtToken).transfer(msg.sender, balance),
-            "Transfer failed"
-        );
+        // Transfer USDT to admin using SafeERC20
+        IERC20(usdtToken).safeTransfer(msg.sender, balance);
 
         emit FundsWithdrawn(msg.sender, balance);
     }
