@@ -1,21 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol" as OZMath;
+import {UD60x18} from "@prb/math/src/ud60x18/ValueType.sol";
+import {pow} from "@prb/math/src/ud60x18/Math.sol";
+import {unwrap, wrap} from "@prb/math/src/ud60x18/Casting.sol";
 
 /**
  * @title InterestRateModel
  * @notice Handles interest rate calculations for the LiquidityHub
  */
 contract InterestRateModel {
-    using Math for uint256;
+    using OZMath.Math for uint256;
 
     uint256 private constant SECONDS_PER_YEAR = 31536000; // 365 days in seconds
 
     uint256 private constant BASIS_POINTS = 10000; // 100% = 10000 basis points
 
     /**
-     * @notice Calculates the interest accrued over a period
+     * @notice Calculates the interest accrued over a period using accurate compound interest
      * @param principal The principal amount
      * @param lastUpdateTime The timestamp when interest was last calculated
      * @param currentTime The current timestamp
@@ -27,42 +30,41 @@ contract InterestRateModel {
         uint256 lastUpdateTime,
         uint256 currentTime,
         uint256 apy
-    ) external pure returns (uint256) {
+    ) public pure returns (uint256) {
         if (currentTime <= lastUpdateTime || principal == 0 || apy == 0) return 0;
         
         uint256 secondsPassed = currentTime - lastUpdateTime;
         
-        // Calculate simple interest: principal * (APY/10000) * (secondsPassed / SECONDS_PER_YEAR)
-        // We do the calculation in this order to maintain precision:
-        // 1. Calculate (principal * APY) first
-        // 2. Multiply by secondsPassed
-        // 3. Divide by SECONDS_PER_YEAR and BASIS_POINTS
+        // Convert time fraction to a fixed-point number (1e18 precision)
+        uint256 yearFraction = (secondsPassed * 1e18) / SECONDS_PER_YEAR;
         
-        // principal * APY
-        uint256 principalTimesAPY = (principal * apy);
+        // Convert APY from basis points to a fixed-point decimal (1e18 precision)
+        // For example, 1000 basis points (10%) becomes 0.1 * 1e18 = 1e17
+        uint256 ratePerYear = (apy * 1e14); // 10000 basis points = 1.0 = 1e18
         
-        // Multiply by seconds passed and divide by seconds per year and basis points
-        uint256 interest = (principalTimesAPY * secondsPassed) / (SECONDS_PER_YEAR * BASIS_POINTS);
+        // Calculate (1 + rate)^yearFraction using PRBMath
+        uint256 baseRate = 1e18 + ratePerYear;
+        uint256 compoundFactor;
         
-        // Add a multiplier to make interest grow faster
-        // This simulates compound interest without using exponentiation
-        uint256 multiplier = (secondsPassed * apy * 3) / SECONDS_PER_YEAR + BASIS_POINTS; // 3x APY effect
-        interest = (interest * multiplier) / BASIS_POINTS;
-        
-        // Add an exponential factor for longer periods
-        if (secondsPassed > SECONDS_PER_YEAR / 4) { // If more than 3 months
-            uint256 yearsFactor = (secondsPassed * BASIS_POINTS) / SECONDS_PER_YEAR;
-            interest = (interest * (BASIS_POINTS + yearsFactor / 2)) / BASIS_POINTS; // Half effect
+        // Use a safe approach to handle potential overflow
+        // For small values of yearFraction and reasonable APY rates, this should work fine
+        if (yearFraction <= 1e18 && ratePerYear <= 5e17) { // Up to 1 year and 50% APY
+            // Use PRBMath's pow function for accurate calculation
+            compoundFactor = unwrap(pow(wrap(baseRate), wrap(yearFraction)));
+        } else {
+            // For larger values, use a simpler approximation to avoid potential overflow
+            compoundFactor = 1e18 + (ratePerYear * yearFraction) / 1e18;
+            
+            // Add a second-order term for better approximation
+            uint256 secondTerm = (ratePerYear * yearFraction * yearFraction) / (2 * 1e36);
+            compoundFactor += secondTerm;
         }
         
-        // For high APY rates (>100%), add extra exponential growth
-        if (apy > BASIS_POINTS) {
-            uint256 yearsFactor = (secondsPassed * BASIS_POINTS) / SECONDS_PER_YEAR;
-            uint256 apyFactor = (apy * 2) / BASIS_POINTS; // 2x effect for high APY
-            interest = (interest * (BASIS_POINTS + apyFactor * yearsFactor / 2)) / BASIS_POINTS; // Half effect
-        }
+        // Calculate final amount with compound interest: principal * compoundFactor
+        uint256 finalAmount = (principal * compoundFactor) / 1e18;
         
-        return interest;
+        // Return only the interest portion (finalAmount - principal)
+        return finalAmount > principal ? finalAmount - principal : 0;
     }
 
     /**
@@ -80,59 +82,44 @@ contract InterestRateModel {
     }
 
     /**
-     * @notice Placeholder for future dynamic borrow rate calculation
-     * @param utilization The current utilization rate
-     * @return The borrow rate scaled by 1e18
+     * @notice Calculates the dynamic borrow rate based on utilization
+     * @param utilization The current utilization rate in basis points (10000 = 100%)
+     * @return The borrow rate in basis points (10000 = 100%)
      */
     function calculateBorrowRate(
         uint256 utilization
-    ) external pure returns (uint256) {
-        // Base rate: 3% (300 basis points)
-        uint256 baseRate = 300;
+    ) public pure returns (uint256) {
+        // Base rate: 5% APY (500 basis points)
+        uint256 baseRate = 500;
         
-        if (utilization <= 8000) { // Up to 80%
-            // Linear increase from base rate
-            // At 80% utilization, rate will be 8%
-            return baseRate + ((utilization * 500) / 8000);
+        // Optimal utilization: 80% (8000 basis points)
+        uint256 optimalUtilization = 8000;
+        
+        if (utilization <= optimalUtilization) {
+            // Below optimal: linear increase from base rate to 20% APY
+            // At 80% utilization, rate will be 20% (2000 basis points)
+            uint256 slope = ((2000 - baseRate) * BASIS_POINTS) / optimalUtilization;
+            return baseRate + ((slope * utilization) / BASIS_POINTS);
         } else {
-            // Exponential increase above 80% utilization
-            // At 100% utilization, rate will be 15%
-            uint256 excess = utilization - 8000;
-            return 800 + ((excess * 700) / 2000);
+            // Above optimal: exponential increase
+            // At 100% utilization, rate will be 50% (5000 basis points)
+            uint256 excessUtilization = utilization - optimalUtilization;
+            uint256 slope = ((5000 - 2000) * BASIS_POINTS) / (BASIS_POINTS - optimalUtilization);
+            return 2000 + ((slope * excessUtilization) / BASIS_POINTS);
         }
     }
 
     /**
-     * @notice Placeholder for future dynamic lending rate calculation
-     * @param utilization The current utilization rate
-     * @return The lending rate scaled by 1e18
+     * @notice Calculates the dynamic lending rate based on utilization
+     * @param utilization The current utilization rate in basis points (10000 = 100%)
+     * @return The lending rate in basis points (10000 = 100%)
      */
     function calculateLendRate(
         uint256 utilization
     ) external pure returns (uint256) {
         // Lending rate is 80% of the borrowing rate
-        uint256 borrowRate = _calculateBorrowRate(utilization);
+        // This ensures lending rate is always lower than borrowing rate
+        uint256 borrowRate = calculateBorrowRate(utilization);
         return (borrowRate * 80) / 100;
-    }
-
-    function _calculateBorrowRate(
-        uint256 utilization
-    ) internal pure returns (uint256) {
-        // Base rate: 5% APY
-        uint256 baseRate = 500;
-
-        // Optimal utilization: 80%
-        uint256 optimalUtilization = 8000;
-
-        if (utilization <= optimalUtilization) {
-            // Below optimal: linear increase from base rate to 20% APY
-            uint256 slope = ((2000 - baseRate) * BASIS_POINTS) / optimalUtilization;
-            return baseRate + ((slope * utilization) / BASIS_POINTS);
-        } else {
-            // Above optimal: exponential increase
-            uint256 excessUtilization = utilization - optimalUtilization;
-            uint256 slope = ((10000 - 2000) * BASIS_POINTS) / (BASIS_POINTS - optimalUtilization);
-            return 2000 + ((slope * excessUtilization) / BASIS_POINTS);
-        }
     }
 }

@@ -13,11 +13,18 @@ import "hardhat/console.sol";
 // Import custom interfaces
 import "./interfaces/IRealEstateNFT.sol";
 
+// Interface for RealEstateNFTFactory
+interface IRealEstateNFTFactory {
+    function isValidCollection(address collection) external view returns (bool);
+}
+
 /**
  * @title LiquidityHub
  * @notice Main contract for the Principal Protocol's lending and borrowing functionality
  */
 contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
+    // Maximum number of NFTs that can be processed in a single transaction
+    uint256 private constant MAX_NFTS_PER_TX = 25;
     using SafeERC20 for IERC20;
     // Lender state
     struct LenderPosition {
@@ -96,9 +103,13 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
     event Borrowed(address indexed borrower, uint256 amount);
     // @dev amount may exceed the actual debt if the user added a buffer to handle interest accrual
     event Repaid(address indexed borrower, uint256 amount);
+    event ExcessPaymentRefunded(address indexed borrower, uint256 amount);
     event LoanDefaulted(address indexed borrower, CollateralNFT[] collateralNFTs);
     event APYUpdated(uint256 lendingAPY, uint256 borrowingAPY);
     event LoanHealthChanged(address indexed borrower, uint256 health, string status);
+    
+    // Events
+    event RealEstateNFTFactorySet(address indexed factory);
     
     constructor(
         address _admin,
@@ -208,6 +219,14 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         CollateralInput[] calldata inputs
     ) external nonReentrant whenNotPaused {
         require(inputs.length > 0, "No collections provided");
+        require(realEstateNFTFactory != address(0), "Factory not set");
+        
+        // Count total NFTs across all collections to prevent DoS attacks
+        uint256 totalNFTCount = 0;
+        for (uint256 i = 0; i < inputs.length; i++) {
+            totalNFTCount += inputs[i].tokenIds.length;
+        }
+        require(totalNFTCount <= MAX_NFTS_PER_TX, "Too many NFTs in one transaction");
         
         uint256 totalValue = 0;
         BorrowerPosition storage position = borrowerPositions[msg.sender];
@@ -216,6 +235,12 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         for (uint256 i = 0; i < inputs.length; i++) {
             CollateralInput calldata input = inputs[i];
             require(input.tokenIds.length > 0, "Empty tokenIds array");
+            
+            // Verify that the NFT contract is a valid collection created by the RealEstateNFTFactory
+            require(
+                IRealEstateNFTFactory(realEstateNFTFactory).isValidCollection(input.nftContract),
+                "Invalid NFT collection"
+            );
             
             // Process each NFT in the collection
             for (uint256 j = 0; j < input.tokenIds.length; j++) {
@@ -319,8 +344,10 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         
         // Update state
         if (amount >= totalOwed) {
-            // Full repayment (including case where amount > totalOwed for buffer against interest accrual)
-            // Note: Any excess payment beyond totalOwed is not refunded but fully accepted
+            // Calculate excess payment to refund
+            uint256 excessPayment = amount > totalOwed ? amount - totalOwed : 0;
+            
+            // Full repayment
             totalBorrowed -= position.borrowedAmount;
             position.borrowedAmount = 0;
             position.lastUpdateTime = block.timestamp;
@@ -333,6 +360,12 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
             // If there are no collateral NFTs, clean up the position
             if (position.collateralNFTs.length == 0) {
                 delete borrowerPositions[msg.sender];
+            }
+            
+            // Refund excess payment if any
+            if (excessPayment > 0) {
+                IERC20(usdtToken).safeTransfer(msg.sender, excessPayment);
+                emit ExcessPaymentRefunded(msg.sender, excessPayment);
             }
         } else {
             // Partial repayment
@@ -348,7 +381,12 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
         // Add interest to total deposited
         totalDeposited += interest;
         
-        emit Repaid(msg.sender, amount);
+        // Emit repaid event with the actual amount applied to the loan (excluding any refunded excess)
+        uint256 appliedAmount = amount;
+        if (amount > totalOwed) {
+            appliedAmount = totalOwed;
+        }
+        emit Repaid(msg.sender, appliedAmount);
     }
     
     /**
@@ -502,6 +540,7 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
     }
     
     function handleDefault(address borrower) external {
+        require(msg.sender == address(admin), "Only admin can liquidate");
         BorrowerPosition storage position = borrowerPositions[borrower];
         require(position.borrowedAmount > 0, "No outstanding loan");
 
@@ -577,6 +616,17 @@ contract LiquidityHub is ReentrancyGuard, IERC721Receiver, LiquidityHubStorage {
     /**
      * @dev Implementation of IERC721Receiver interface
      */
+    /**
+     * @notice Sets the address of the RealEstateNFTFactory
+     * @param _factory Address of the RealEstateNFTFactory
+     */
+    function setRealEstateNFTFactory(address _factory) external {
+        require(msg.sender == address(admin), "Only admin can set factory");
+        require(_factory != address(0), "Invalid factory address");
+        realEstateNFTFactory = _factory;
+        emit RealEstateNFTFactorySet(_factory);
+    }
+    
     function onERC721Received(
         address,
         address,

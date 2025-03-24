@@ -46,10 +46,12 @@ async function main() {
   // Step 1: Deploy AdminRegistry
   console.log("\n=== DEPLOYING ADMIN REGISTRY ===");
   const AdminRegistry = await hre.ethers.getContractFactory("AdminRegistry");
-  const adminRegistry = await AdminRegistry.deploy();
+  const initialMaxAdminLimit = 50; // Set maximum admin limit
+  const adminRegistry = await AdminRegistry.deploy(initialMaxAdminLimit);
   await adminRegistry.waitForDeployment();
   const adminRegistryAddress = await adminRegistry.getAddress();
   console.log("AdminRegistry deployed to:", adminRegistryAddress);
+  console.log("AdminRegistry max admin limit set to:", initialMaxAdminLimit);
 
   // Step 2: Deploy RealEstateNFTFactory
   console.log("\n=== DEPLOYING REAL ESTATE NFT FACTORY ===");
@@ -88,6 +90,18 @@ async function main() {
   await liquidityHub.waitForDeployment();
   const liquidityHubAddress = await liquidityHub.getAddress();
   console.log("LiquidityHub deployed to:", liquidityHubAddress);
+
+  // Set LiquidityHub address in LiquidityHubAdmin
+  console.log("Setting LiquidityHub address in LiquidityHubAdmin...");
+  const setLiquidityHubTx = await liquidityHubAdmin.setLiquidityHubAddress(liquidityHubAddress);
+  await setLiquidityHubTx.wait();
+  console.log("LiquidityHub address set in LiquidityHubAdmin");
+
+  // Set RealEstateNFTFactory address in LiquidityHub
+  console.log("Setting RealEstateNFTFactory address in LiquidityHub...");
+  const setFactoryTx = await liquidityHub.setRealEstateNFTFactory(factoryAddress);
+  await setFactoryTx.wait();
+  console.log("RealEstateNFTFactory address set in LiquidityHub");
 
   // Step 6: Configure LiquidityHub parameters
   console.log("\n=== CONFIGURING LIQUIDITY HUB PARAMETERS ===");

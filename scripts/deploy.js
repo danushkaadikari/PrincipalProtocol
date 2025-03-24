@@ -14,9 +14,11 @@ async function main() {
   // Deploy AdminRegistry
   console.log("\nDeploying AdminRegistry...");
   const AdminRegistry = await hre.ethers.getContractFactory("AdminRegistry");
-  const adminRegistry = await AdminRegistry.deploy();
+  const initialMaxAdminLimit = 50; // Set maximum admin limit
+  const adminRegistry = await AdminRegistry.deploy(initialMaxAdminLimit);
   await adminRegistry.waitForDeployment();
   console.log("AdminRegistry deployed to:", await adminRegistry.getAddress());
+  console.log("AdminRegistry max admin limit set to:", initialMaxAdminLimit);
 
   // Deploy RealEstateNFTFactory
   console.log("\nDeploying RealEstateNFTFactory...");

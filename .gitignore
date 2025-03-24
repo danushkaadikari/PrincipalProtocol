@@ -8,7 +8,13 @@ typechain-types
 # Hardhat files
 cache
 artifacts
+
 # Frontend directory (has its own repository)
 frontend/
+
+# Test files
 tests/
-supabase/migrations
+test/
+
+# Supabase files
+supabase/migrations/

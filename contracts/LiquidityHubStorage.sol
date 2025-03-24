@@ -30,4 +30,5 @@ abstract contract LiquidityHubStorage {
     // Contract references
     address public usdtToken;
     address public adminContract;     // LiquidityHubAdmin contract address
+    address public realEstateNFTFactory; // RealEstateNFTFactory contract address
 }

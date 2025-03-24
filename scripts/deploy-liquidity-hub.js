@@ -38,6 +38,17 @@ async function main() {
   await liquidityHub.waitForDeployment();
   console.log("LiquidityHub deployed to:", await liquidityHub.getAddress());
 
+  // Set LiquidityHub address in LiquidityHubAdmin
+  console.log("Setting LiquidityHub address in LiquidityHubAdmin...");
+  await liquidityHubAdmin.setLiquidityHubAddress(await liquidityHub.getAddress());
+  console.log("LiquidityHub address set in LiquidityHubAdmin");
+
+  // Set RealEstateNFTFactory address in LiquidityHub
+  console.log("Setting RealEstateNFTFactory address in LiquidityHub...");
+  const setFactoryTx = await liquidityHub.setRealEstateNFTFactory(realEstateNFTFactoryAddress);
+  await setFactoryTx.wait();
+  console.log("RealEstateNFTFactory address set in LiquidityHub");
+
   // Set default APY rates
   console.log("Setting default APY rates...");
   const lendingAPY = 300; // 3%

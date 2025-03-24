@@ -18,6 +18,7 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
 
     event NFTMinted(address indexed to, uint256 tokenId);
     event FundsWithdrawn(address indexed to, uint256 amount);
+    event Paused(bool _paused);
 
     modifier onlyFactory() {
         require(msg.sender == factory, "Only factory can call");
@@ -82,6 +83,7 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
 
     function setPaused(bool _paused) external onlyFactory {
         paused = _paused;
+        emit Paused(_paused);
     }
 
     function getCollectionInfo() external view returns (

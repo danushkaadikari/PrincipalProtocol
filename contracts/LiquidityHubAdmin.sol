@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -33,8 +33,9 @@ interface IInterestRateModel {
     function calculateLendRate(uint256 utilization) external pure returns (uint256);
 }
 
-contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
+contract LiquidityHubAdmin is Ownable2Step, Pausable, ReentrancyGuard {
     IInterestRateModel public immutable interestRateModel;
+    address public liquidityHubAddress;
 
     // Configuration
     uint256 public borrowingLimit;     // 40% initially (4000 basis points)
@@ -54,6 +55,8 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
     event DynamicRatesToggled(bool isEnabled);
     event TreasuryWalletUpdated(address newTreasuryWallet);
     event LoanDefaulted(address indexed borrower, uint256[] tokenIds);
+    event LiquidityHubAddressSet(address indexed liquidityHubAddress);
+    event setEmergencyPause(bool isPaused);
 
     constructor(address _interestRateModel) {
         require(_interestRateModel != address(0), "Invalid interest rate model");
@@ -84,6 +87,7 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
      * @param newAPY New lending APY in basis points
      */
     function setLendingAPY(uint256 newAPY) external onlyAdmin {
+        require(newAPY >= 50, "APY too low"); // Min 0.5% (50 basis points)
         require(newAPY <= 20000, "APY too high"); // Max 200% (20000 basis points)
         lendingAPY = newAPY;
         emit APYUpdated(lendingAPY, borrowingAPY);
@@ -94,7 +98,9 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
      * @param newAPY New borrowing APY in basis points
      */
     function setBorrowingAPY(uint256 newAPY) external onlyAdmin {
+        require(newAPY >= 100, "APY too low"); // Min 1% (100 basis points)
         require(newAPY <= 200000000, "APY too high"); // Max 2000000% (200000000 basis points)
+        require(newAPY > lendingAPY, "Borrowing APY must be higher than lending APY");
         borrowingAPY = newAPY;
         emit APYUpdated(lendingAPY, borrowingAPY);
     }
@@ -104,6 +110,7 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
      * @param newFee New withdrawal fee in basis points
      */
     function setWithdrawalFee(uint256 newFee) external onlyAdmin {
+        // 0 as a valid business case (represents no withdrawal fee)
         require(newFee <= 10000, "Fee too high"); // Max 100% (10000 basis points)
         withdrawalFee = newFee;
         emit WithdrawalFeeUpdated(newFee);
@@ -114,6 +121,7 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
      * @param newLimit New borrowing limit in basis points
      */
     function setBorrowingLimit(uint256 newLimit) external onlyAdmin {
+        require(newLimit >= 1000, "Limit too low"); // Min 10% (1000 basis points)
         require(newLimit <= 8000, "Limit too high"); // Max 80% (8000 basis points)
         borrowingLimit = newLimit;
         emit BorrowingLimitUpdated(newLimit);
@@ -124,15 +132,18 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
      * @param newThreshold New default threshold in basis points
      */
     function setDefaultThreshold(uint256 newThreshold) external onlyAdmin {
-        require(newThreshold > borrowingLimit, "Threshold too low");
+        require(newThreshold >= 2000, "Threshold too low"); // Min 20% (2000 basis points)
+        require(newThreshold <= 8000, "Threshold too high"); // Max 80% (8000 basis points)
         defaultThreshold = newThreshold;
         emit DefaultThresholdUpdated(newThreshold);
     }
 
     function handleDefault(address borrower, address nftContract) external nonReentrant onlyAdmin {
+        require(liquidityHubAddress != address(0), "LiquidityHub address not set");
+        
         // Get borrower position from main contract
         (uint256[] memory collateralNFTs, uint256 borrowedAmount, uint256 lastUpdateTime, uint256 totalCollateralValue) = 
-            ILiquidityHub(address(this)).borrowerPositions(borrower);
+            ILiquidityHub(liquidityHubAddress).borrowerPositions(borrower);
         
         // Check if there is an outstanding loan with collateral
         require(borrowedAmount > 0, "No outstanding loan");
@@ -155,7 +166,7 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
         for (uint256 i = 0; i < collateralNFTs.length; i++) {
             uint256 tokenId = collateralNFTs[i];
             // Update NFT lock status in main contract
-            ILiquidityHub(address(this)).setNFTLockStatus(nftContract, tokenId, false);
+            ILiquidityHub(liquidityHubAddress).setNFTLockStatus(nftContract, tokenId, false);
             IERC721(nftContract).safeTransferFrom(
                 address(this),
                 treasuryWallet,
@@ -164,7 +175,7 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
         }
         
         // Clear borrower position in main contract
-        ILiquidityHub(address(this)).clearBorrowerPosition(borrower);
+        ILiquidityHub(liquidityHubAddress).clearBorrowerPosition(borrower);
         
         emit LoanDefaulted(borrower, collateralNFTs);
     }
@@ -175,6 +186,17 @@ contract LiquidityHubAdmin is Ownable, Pausable, ReentrancyGuard {
         } else {
             _pause();
         }
+        emit setEmergencyPause(paused());
+    }
+    
+    /**
+     * @notice Sets the address of the LiquidityHub contract
+     * @param _liquidityHub Address of the LiquidityHub contract
+     */
+    function setLiquidityHubAddress(address _liquidityHub) external onlyOwner {
+        require(_liquidityHub != address(0), "Invalid LiquidityHub address");
+        liquidityHubAddress = _liquidityHub;
+        emit LiquidityHubAddressSet(_liquidityHub);
     }
 
     // Dynamic rates getter
