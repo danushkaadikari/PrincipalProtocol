@@ -97,9 +97,9 @@ async function main() {
   await setLiquidityHubTx.wait();
   console.log("LiquidityHub address set in LiquidityHubAdmin");
 
-  // Set RealEstateNFTFactory address in LiquidityHub
-  console.log("Setting RealEstateNFTFactory address in LiquidityHub...");
-  const setFactoryTx = await liquidityHub.setRealEstateNFTFactory(factoryAddress);
+  // Set RealEstateNFTFactory address in LiquidityHub via LiquidityHubAdmin
+  console.log("Setting RealEstateNFTFactory address in LiquidityHub via LiquidityHubAdmin...");
+  const setFactoryTx = await liquidityHubAdmin.setRealEstateNFTFactory(factoryAddress);
   await setFactoryTx.wait();
   console.log("RealEstateNFTFactory address set in LiquidityHub");
 

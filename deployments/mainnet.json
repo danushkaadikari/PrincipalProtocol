@@ -1,0 +1,21 @@
+{
+  "network": "mainnet",
+  "chainId": 1,
+  "timestamp": "2025-04-02T09:13:15.392Z",
+  "deployer": "0x48FC0F85044692Da323cd02c8E36abF5C653d12a",
+  "contracts": {
+    "usdt": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "adminRegistry": "0x8DDe6819D91BB98b38b73880f02176ed1Ce1341E",
+    "realEstateNFTFactory": "0x7Def7d2dEf933CE79B29847C746Ab9B8d00f6Dbe",
+    "interestRateModel": "0x44F9aB95a7d71048FE3fAD70d846c93FA07E4726",
+    "liquidityHubAdmin": "0x53a8af4A2668511F09c47fA80E635f40098F1b4c",
+    "liquidityHub": "0x980a3f0F574267a7ff0F63E16C57Dcf76137944A"
+  },
+  "configuration": {
+    "lendingAPY": 300,
+    "borrowingAPY": 600,
+    "borrowingLimit": 4000,
+    "defaultThreshold": 5000,
+    "treasuryWallet": "0x48FC0F85044692Da323cd02c8E36abF5C653d12a"
+  }
+}

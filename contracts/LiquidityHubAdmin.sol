@@ -14,6 +14,7 @@ interface ILiquidityHub {
     );
     function setNFTLockStatus(address nftContract, uint256 tokenId, bool status) external;
     function clearBorrowerPosition(address borrower) external;
+    function setRealEstateNFTFactory(address _factory) external;
 }
 
 interface IInterestRateModel {
@@ -49,6 +50,7 @@ contract LiquidityHubAdmin is Ownable2Step, Pausable, ReentrancyGuard {
     // Events
     event APYUpdated(uint256 lendingAPY, uint256 borrowingAPY);
     event WithdrawalFeeUpdated(uint256 newFee);
+    event RealEstateNFTFactorySet(address indexed factory);
     event BorrowingLimitUpdated(uint256 newLimit);
     event DefaultThresholdUpdated(uint256 newThreshold);
     event EmergencyPauseToggled(bool isPaused);
@@ -197,6 +199,18 @@ contract LiquidityHubAdmin is Ownable2Step, Pausable, ReentrancyGuard {
         require(_liquidityHub != address(0), "Invalid LiquidityHub address");
         liquidityHubAddress = _liquidityHub;
         emit LiquidityHubAddressSet(_liquidityHub);
+    }
+    
+    /**
+     * @notice Sets the address of the RealEstateNFTFactory in the LiquidityHub contract
+     * @param _factory Address of the RealEstateNFTFactory contract
+     */
+    function setRealEstateNFTFactory(address _factory) external onlyOwner {
+        require(liquidityHubAddress != address(0), "LiquidityHub address not set");
+        require(_factory != address(0), "Invalid factory address");
+        
+        ILiquidityHub(liquidityHubAddress).setRealEstateNFTFactory(_factory);
+        emit RealEstateNFTFactorySet(_factory);
     }
 
     // Dynamic rates getter
