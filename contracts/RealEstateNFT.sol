@@ -78,7 +78,7 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
     }
 
     function _baseURI() internal view override returns (string memory) {
-        return projectURI;
+        return string(abi.encodePacked(projectURI, address(this), "/"));
     }
 
     function setPaused(bool _paused) external onlyFactory {
