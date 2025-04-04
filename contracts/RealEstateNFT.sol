@@ -5,8 +5,11 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract RealEstateNFT is ERC721, ReentrancyGuard {
+    using Strings for uint256;
+    using Strings for address;
     using SafeERC20 for IERC20;
     address public immutable factory;
     address public immutable usdtToken;
@@ -78,7 +81,7 @@ contract RealEstateNFT is ERC721, ReentrancyGuard {
     }
 
     function _baseURI() internal view override returns (string memory) {
-        return string(abi.encodePacked(projectURI, address(this), "/"));
+        return string(abi.encodePacked(projectURI, Strings.toHexString(uint160(address(this)), 20), "/"));
     }
 
     function setPaused(bool _paused) external onlyFactory {

@@ -1,15 +1,15 @@
 {
   "network": "mainnet",
   "chainId": 1,
-  "timestamp": "2025-04-03T20:53:02.093Z",
+  "timestamp": "2025-04-04T11:06:08.460Z",
   "deployer": "0x48FC0F85044692Da323cd02c8E36abF5C653d12a",
   "contracts": {
     "usdt": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-    "adminRegistry": "0x3B9a2f673a9F2AeD7B47E1EBdfa0dE1E844CA06a",
-    "realEstateNFTFactory": "0x139504a3e8C0a64b055fa5164CD4E96Aa6f30ad9",
-    "interestRateModel": "0x893090e1F9Ba664550A9039b8d0e33D9d5A7ad34",
-    "liquidityHubAdmin": "0x74581a3Df885c5411631aCC922a348BB89E5Fd20",
-    "liquidityHub": "0x543761634889994b97a3671B8c515d8EAe2Eda0f"
+    "adminRegistry": "0x43A80782FC02dc9eD7A0FD474Fa304601dF87A20",
+    "realEstateNFTFactory": "0xD211Ac75981Edf003c94007EA78Cc9dA5E587a02",
+    "interestRateModel": "0x79D8eea9710C937ddc5cD52E3572c6e62D51E7Ae",
+    "liquidityHubAdmin": "0xA21FDd8158ff7Cff5a30e12c08b2a4335EEb8895",
+    "liquidityHub": "0xEeFa2836865843aF00c8F9D6Eb95B0D0984dFEA2"
   },
   "configuration": {
     "lendingAPY": 300,
